@@ -2,13 +2,13 @@
 #include <juce_audio_utils/juce_audio_utils.h>
 #include <atomic>
 #include "SynthEngine.h"
+#include "Fx.h"
 
-class TapeRompProcessor : public juce::AudioProcessor,
-                          private juce::AudioProcessorValueTreeState::Listener
+class TapeRompProcessor : public juce::AudioProcessor
 {
 public:
     TapeRompProcessor();
-    ~TapeRompProcessor() override;
+    ~TapeRompProcessor() override = default;
 
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;
     void releaseResources() override {}
@@ -18,11 +18,11 @@ public:
     juce::AudioProcessorEditor* createEditor() override;
     bool hasEditor() const override { return true; }
 
-    const juce::String getName() const override { return "TapeRomp"; }
+    const juce::String getName() const override { return "Kematik Tapes"; }
     bool acceptsMidi() const override { return true; }
     bool producesMidi() const override { return false; }
     bool isMidiEffect() const override { return false; }
-    double getTailLengthSeconds() const override { return 2.5; }
+    double getTailLengthSeconds() const override { return 3.0; }
 
     int getNumPrograms() override { return 1; }
     int getCurrentProgram() override { return 0; }
@@ -33,28 +33,39 @@ public:
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
 
+    // Вызывается редактором при выборе пресета пользователем:
+    // сбрасывает вкладку EDIT на стандартные значения пресета и ставит арпеджиатор.
+    void applyPresetDefaults (int presetIndex);
+
     juce::AudioProcessorValueTreeState apvts;
-    std::atomic<int> activeVoices { 0 };   // для анимации катушек в редакторе
+    std::atomic<int> activeVoices { 0 };   // для анимации катушек
 
 private:
     static juce::AudioProcessorValueTreeState::ParameterLayout createLayout();
-    void parameterChanged (const juce::String& id, float newValue) override;
 
-    // арпеджиатор
-    void generateArp (const juce::MidiBuffer& in, int numSamples, const tr::Preset& pr);
+    void generateArp (const juce::MidiBuffer& in, int numSamples, const tr::Preset& pr, double bpm);
     void arpNoteOn (int note, float vel);
     void arpNoteOff (int note);
     void arpClear();
     int nextArpNote (int pattern);
 
     tr::SynthEngine engine;
-    juce::Reverb reverb;
+    tr::FxChain fx;
     juce::MidiBuffer arpEvents;
 
     std::atomic<float>* presetP  = nullptr;
-    std::atomic<float>* cutoffP  = nullptr;
+    std::atomic<float>* attackP  = nullptr;
     std::atomic<float>* releaseP = nullptr;
+    std::atomic<float>* cutoffP  = nullptr;
+    std::atomic<float>* resoP    = nullptr;
+    std::atomic<float>* driveP   = nullptr;
+    std::atomic<float>* lofiP    = nullptr;
+    std::atomic<float>* chorusP  = nullptr;
     std::atomic<float>* reverbP  = nullptr;
+    std::atomic<float>* rsizeP   = nullptr;
+    std::atomic<float>* dlyMixP  = nullptr;
+    std::atomic<float>* dlyTimeP = nullptr;
+    std::atomic<float>* dlyFbP   = nullptr;
     std::atomic<float>* gainP    = nullptr;
     std::atomic<float>* arpP     = nullptr;
     std::atomic<float>* arpRateP = nullptr;
@@ -67,7 +78,6 @@ private:
     int arpNote = -1;
     int arpIndex = 0;
     bool wasArp = false;
-    std::atomic<bool> restoring { false };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TapeRompProcessor)
 };

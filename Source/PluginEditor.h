@@ -25,14 +25,18 @@ public:
     void resized() override;
 
 private:
-    // Timer
+    static constexpr int kTabs = 8;     // 7 категорий + EDIT
+    static constexpr int kEditKnobs = 12;
+
     void timerCallback() override;
-    // ListBoxModel
     int getNumRows() override { return (int) catPresets.size(); }
     void paintListBoxItem (int row, juce::Graphics&, int w, int h, bool selected) override;
     void selectedRowsChanged (int lastRowSelected) override;
 
     void showCategory (int cat);
+    void showEdit();
+    void rebuildList (int cat);
+    void updateVisibility();
     void setPreset (int globalIndex);
     void syncUI (int globalIndex);
     void drawCassette (juce::Graphics&);
@@ -49,9 +53,10 @@ private:
     TapeRompProcessor& proc;
     RetroLookAndFeel laf;
 
-    juce::TextButton tabs[7];
+    juce::TextButton tabs[kTabs];
     juce::ListBox list { "presets", this };
-    Knob knobs[4];
+    Knob editKnobs[kEditKnobs];
+    Knob volumeKnob;
     juce::TextButton arpBtn { "ARP" };
     juce::ComboBox rateBox;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> arpAtt;
@@ -61,9 +66,11 @@ private:
     std::vector<int> catPresets;
     int currentCat = -1;
     int lastPreset = -1;
+    bool editMode = false;
     float reel = 0.f, reelSpeed = 0.f;
     bool syncing = false;
     juce::Rectangle<float> cassetteArea;
+    juce::Rectangle<int> midArea;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TapeRompEditor)
 };

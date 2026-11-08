@@ -21,7 +21,7 @@ juce_add_plugin(TapeRomp
     PLUGIN_MANUFACTURER_CODE Yrnm
     PLUGIN_CODE Tprm
     FORMATS VST3 Standalone
-    PRODUCT_NAME "TapeRomp"
+    PRODUCT_NAME "Kematik Tapes"
     COPY_PLUGIN_AFTER_BUILD ${TAPEROMP_COPY})
 
 target_sources(TapeRomp PRIVATE

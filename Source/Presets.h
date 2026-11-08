@@ -1,77 +1,110 @@
 #pragma once
 #include <iterator>
 
-// Все звуки синтезируются в реальном времени (без сэмплов) -> маленький размер и низкая нагрузка на CPU.
+// Kematik Tapes - таблица пресетов (все звуки синтезируются, сэмплов нет -> лёгкий плагин).
+// Файл сгенерирован; порядок полей ВАЖЕН (см. struct Preset).
 namespace tr
 {
-enum Wave { Sine = 0, Saw, Square, Tri };
+enum Wave { Sine = 0, Saw, Square, Tri, Pulse };
 
 struct Preset
 {
     const char* name;
-    int cat;                  // индекс категории (вкладки)
-    int w1, w2;               // формы волн осцилляторов
-    float semi2, detune;      // osc2: сдвиг в полутонах, расстройка в центах
-    float fmRatio, fmAmt;     // FM (колокольчики / e-piano): отношение частот, глубина
-    float a, d, s, r;         // огибающая (сек / уровень)
-    float cutoff, res, fenv;  // фильтр: Гц, резонанс 0..1, глубина огибающей в октавах
-    bool arp;                 // включать арпеджиатор при выборе пресета
-    int arpPattern;           // 0 вверх, 1 вниз, 2 вверх-вниз, 3 вверх + октава
+    int cat;                   // индекс категории (вкладки)
+    int w1, w2;                // формы волн
+    float semi2, detune;       // osc2: полутона, расстройка (центы)
+    float mix2;                // уровень osc2
+    float sub;                 // саб-синус (-1 октава)
+    float noise;               // шум (удар / дыхание)
+    float fmRatio, fmAmt;      // FM для osc1
+    float tine;                // FM "тайн" для osc2 (e-piano)
+    float a, d, s, r;          // огибающая
+    float cutoff, res, fenv;   // фильтр: Гц, резонанс, глубина огибающей (октавы)
+    float pitchEnv;            // питч-огибающая (полутона, затухает ~60 мс)
+    float lfoRate, lfoDepth;   // вибрато (Гц, полутона)
+    float reverb, delay;       // стандартные значения EDIT для пресета
+    bool arp;                  // включать арпеджиатор
+    int arpPattern;            // 0 вверх, 1 вниз, 2 вверх-вниз, 3 вверх+октава
     float gain;
 };
 
-inline const char* const kCategories[7] = { "BELLS", "ARPS", "E-PIANO", "BRASS", "STRINGS", "LEADS", "FAST" };
+inline const int kNumCats = 7;
+inline const char* const kCategories[kNumCats] = { "BELLS", "ARPS", "E-PIANO", "BRASS", "STRINGS", "LEADS", "FAST" };
 
 inline const Preset kPresets[] =
 {
-    // ---------------- BELLS ----------------
-    { "Ice Bell",       0, Sine, Sine,    12,  4, 3.5f, 2.2f, .001f, 1.6f, 0.f, 1.4f, 14000, .10f, 0.f, false, 0, .80f },
-    { "Dark Chime",     0, Sine, Tri,      7,  6, 1.41f,3.0f, .001f, 2.2f, 0.f, 1.8f,  5000, .15f, 0.f, false, 0, .80f },
-    { "Music Box",      0, Sine, Sine,    12,  2, 5.0f, 1.2f, .001f, 0.9f, 0.f, 0.8f, 12000, .10f, 0.f, false, 0, .80f },
-    { "Glo Glock",      0, Sine, Sine,    24,  0, 7.0f, 1.6f, .001f, 0.7f, 0.f, 0.9f, 16000, .10f, 0.f, false, 0, .75f },
-    { "Haunted Bell",   0, Sine, Sine,     0,  8, 2.76f,2.8f, .002f, 3.0f, 0.f, 3.0f,  4000, .20f, 0.f, false, 0, .80f },
-
-    // ---------------- ARPS (арпеджиатор включается сам) ----------------
-    { "Pluck Arp",      1, Saw,  Square,   0,  8, 0.f,  0.f,  .001f, .18f, 0.f, .15f,  1800, .25f, 3.0f, true, 0, .70f },
-    { "Dark Arp",       1, Saw,  Saw,    -12, 12, 0.f,  0.f,  .001f, .22f, 0.f, .20f,   900, .30f, 2.5f, true, 2, .75f },
-    { "Future Arp",     1, Square, Saw,   12,  6, 0.f,  0.f,  .001f, .15f, 0.f, .12f,  2500, .20f, 2.0f, true, 3, .70f },
-    { "Glass Arp",      1, Tri,  Sine,    12,  3, 2.0f, .8f,  .001f, .30f, 0.f, .40f,  8000, .10f, 1.0f, true, 0, .75f },
-    { "Trap Arp",       1, Saw,  Square,   0, 10, 0.f,  0.f,  .001f, .12f, 0.f, .10f,  1400, .35f, 3.5f, true, 1, .70f },
-
-    // ---------------- E-PIANO ----------------
-    { "Rhodes",         2, Sine, Sine,    12,  2, 1.0f, 1.4f, .002f, 1.2f, .25f, .50f,  9000, .05f, 0.f, false, 0, .80f },
-    { "Wurly",          2, Tri,  Sine,     0,  4, 2.0f, .9f,  .002f, 0.9f, .30f, .40f,  6000, .10f, 0.f, false, 0, .80f },
-    { "Dark Keys",      2, Sine, Tri,    -12,  5, 1.0f, 1.0f, .003f, 1.5f, .30f, .70f,  2500, .10f, .5f, false, 0, .85f },
-    { "Soft EP",        2, Sine, Sine,    12,  3, 1.0f, .6f,  .005f, 1.0f, .40f, .60f,  5000, .05f, 0.f, false, 0, .80f },
-    { "Plugg Keys",     2, Sine, Sine,    12,  6, 3.0f, 1.6f, .001f, 0.5f, .10f, .35f,  7000, .10f, .5f, false, 0, .80f },
-
-    // ---------------- BRASS ----------------
-    { "Trap Brass",     3, Saw,  Saw,      0, 10, 0.f,  0.f,  .040f, .30f, .70f, .25f,   900, .15f, 2.8f, false, 0, .70f },
-    { "Dark Horns",     3, Saw,  Saw,    -12, 12, 0.f,  0.f,  .060f, .40f, .70f, .30f,   700, .20f, 2.5f, false, 0, .70f },
-    { "Royal Brass",    3, Saw,  Square,   0,  8, 0.f,  0.f,  .050f, .35f, .75f, .30f,  1200, .10f, 2.5f, false, 0, .70f },
-    { "Stab Brass",     3, Saw,  Saw,      0, 14, 0.f,  0.f,  .010f, .20f, .30f, .15f,  1000, .20f, 3.0f, false, 0, .70f },
-    { "Soft Brass",     3, Saw,  Tri,      0,  6, 0.f,  0.f,  .090f, .40f, .80f, .40f,   800, .10f, 2.0f, false, 0, .70f },
-
-    // ---------------- STRINGS ----------------
-    { "Dark Strings",   4, Saw,  Saw,      0, 14, 0.f,  0.f,  .600f, .50f, .80f, 1.0f,  2200, .10f, .5f, false, 0, .65f },
-    { "Glo Strings",    4, Saw,  Saw,     12, 18, 0.f,  0.f,  .500f, .50f, .85f, 1.2f,  4500, .05f, .3f, false, 0, .65f },
-    { "Cinematic Str",  4, Saw,  Saw,    -12, 12, 0.f,  0.f,  .800f, .60f, .90f, 1.5f,  1800, .10f, .7f, false, 0, .65f },
-    { "Pizz Strings",   4, Saw,  Square,   0, 10, 0.f,  0.f,  .003f, .25f, 0.f, .20f,  2500, .15f, 1.5f, false, 0, .75f },
-    { "Soft Pad Str",   4, Tri,  Saw,      0, 12, 0.f,  0.f, 1.000f, .60f, .90f, 1.8f,  2000, .05f, .3f, false, 0, .65f },
-
-    // ---------------- LEADS ----------------
-    { "Future Lead",    5, Saw,  Square,   0, 12, 0.f,  0.f,  .005f, .20f, .90f, .25f,  4500, .20f, 1.0f, false, 0, .65f },
-    { "Glo Lead",       5, Square, Saw,   12,  8, 0.f,  0.f,  .003f, .15f, .85f, .30f,  5000, .15f, .8f, false, 0, .65f },
-    { "Dark Lead",      5, Saw,  Saw,    -12, 10, 0.f,  0.f,  .005f, .20f, .80f, .30f,  2500, .30f, 1.5f, false, 0, .70f },
-    { "Sine Lead",      5, Sine, Tri,      0,  5, 0.f,  0.f,  .010f, .10f, 1.0f, .30f,  8000, .05f, 0.f, false, 0, .80f },
-    { "Plugg Lead",     5, Square, Tri,   12,  6, 0.f,  0.f,  .002f, .25f, .30f, .20f,  3500, .25f, 2.0f, false, 0, .70f },
-
-    // ---------------- FAST ----------------
-    { "Fast Pluck",     6, Saw,  Square,   0,  7, 0.f,  0.f,  .001f, .09f, 0.f, .08f,  2500, .20f, 3.0f, false, 0, .75f },
-    { "Rage Stab",      6, Saw,  Saw,      0, 15, 0.f,  0.f,  .001f, .12f, 0.f, .10f,  1800, .30f, 3.5f, false, 0, .75f },
-    { "Blip",           6, Square, Sine,  12,  0, 0.f,  0.f,  .001f, .07f, 0.f, .06f,  6000, .10f, 1.0f, false, 0, .75f },
-    { "Zap",            6, Saw,  Saw,     12, 20, 0.f,  0.f,  .001f, .10f, 0.f, .10f,  1200, .40f, 4.0f, false, 0, .70f },
-    { "Quick Saw",      6, Saw,  Saw,      0, 10, 0.f,  0.f,  .001f, .14f, .20f, .12f,  3000, .15f, 2.5f, false, 0, .70f },
+    { "Ice Bell", 0, Sine, Sine, 12.0f, 3.0f, 0.35f, 0.0f, 0.0f, 3.5f, 1.2f, 0.0f, 0.001f, 1.6f, 0.0f, 1.4f, 9000.0f, 0.05f, 0.0f, 0.0f, 0.0f, 0.0f, 0.35f, 0.15f, false, 0, 0.75f },
+    { "Dark Chime", 0, Sine, Tri, 7.0f, 6.0f, 0.3f, 0.0f, 0.0f, 1.41f, 1.5f, 0.0f, 0.001f, 2.2f, 0.0f, 1.8f, 4500.0f, 0.05f, 0.0f, 0.0f, 0.0f, 0.0f, 0.4f, 0.2f, false, 0, 0.75f },
+    { "Music Box", 0, Sine, Sine, 12.0f, 2.0f, 0.25f, 0.0f, 0.0f, 5.0f, 0.8f, 0.0f, 0.001f, 0.9f, 0.0f, 0.8f, 9000.0f, 0.05f, 0.0f, 0.0f, 0.0f, 0.0f, 0.3f, 0.25f, false, 0, 0.75f },
+    { "Glo Glock", 0, Sine, Sine, 24.0f, 0.0f, 0.2f, 0.0f, 0.0f, 7.0f, 0.9f, 0.0f, 0.001f, 0.7f, 0.0f, 0.9f, 10000.0f, 0.05f, 0.0f, 0.0f, 0.0f, 0.0f, 0.3f, 0.2f, false, 0, 0.75f },
+    { "Haunted Bell", 0, Sine, Sine, 0.0f, 8.0f, 0.4f, 0.0f, 0.0f, 2.76f, 1.6f, 0.0f, 0.002f, 3.0f, 0.0f, 3.0f, 3500.0f, 0.05f, 0.0f, 0.0f, 4.5f, 0.08f, 0.5f, 0.3f, false, 0, 0.75f },
+    { "Tubular", 0, Sine, Sine, 12.0f, 3.0f, 0.3f, 0.0f, 0.0f, 2.0f, 1.3f, 0.0f, 0.001f, 2.5f, 0.0f, 2.0f, 6000.0f, 0.05f, 0.0f, 0.0f, 0.0f, 0.0f, 0.4f, 0.0f, false, 0, 0.75f },
+    { "Kalimba", 0, Sine, Tri, 12.0f, 3.0f, 0.3f, 0.0f, 0.06f, 4.0f, 0.5f, 0.0f, 0.001f, 0.5f, 0.0f, 0.5f, 6000.0f, 0.05f, 0.0f, 0.0f, 0.0f, 0.0f, 0.25f, 0.2f, false, 0, 0.75f },
+    { "Crystal", 0, Sine, Sine, 19.0f, 5.0f, 0.3f, 0.0f, 0.0f, 6.0f, 1.0f, 0.0f, 0.001f, 1.2f, 0.0f, 1.5f, 10000.0f, 0.05f, 0.0f, 0.0f, 0.0f, 0.0f, 0.45f, 0.25f, false, 0, 0.75f },
+    { "Dream Bell", 0, Sine, Tri, 12.0f, 6.0f, 0.5f, 0.0f, 0.0f, 1.0f, 0.8f, 0.0f, 0.01f, 2.0f, 0.0f, 2.5f, 5000.0f, 0.05f, 0.0f, 0.0f, 5.0f, 0.05f, 0.5f, 0.35f, false, 0, 0.75f },
+    { "Toy Bell", 0, Tri, Sine, 24.0f, 3.0f, 0.25f, 0.0f, 0.0f, 3.0f, 0.6f, 0.0f, 0.001f, 0.45f, 0.0f, 0.4f, 8000.0f, 0.05f, 0.0f, 0.0f, 0.0f, 0.0f, 0.2f, 0.1f, false, 0, 0.75f },
+    { "Pluck Arp", 1, Saw, Square, 0.0f, 8.0f, 0.8f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.001f, 0.18f, 0.0f, 0.15f, 1500.0f, 0.25f, 2.5f, 0.0f, 0.0f, 0.0f, 0.15f, 0.2f, true, 0, 0.7f },
+    { "Dark Arp", 1, Saw, Saw, -12.0f, 12.0f, 0.6f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.001f, 0.22f, 0.0f, 0.2f, 800.0f, 0.3f, 2.5f, 0.0f, 0.0f, 0.0f, 0.2f, 0.3f, true, 2, 0.7f },
+    { "Future Arp", 1, Square, Saw, 12.0f, 6.0f, 0.8f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.001f, 0.15f, 0.0f, 0.12f, 2200.0f, 0.2f, 2.0f, 0.0f, 0.0f, 0.0f, 0.2f, 0.25f, true, 3, 0.7f },
+    { "Glass Arp", 1, Tri, Sine, 12.0f, 3.0f, 0.8f, 0.0f, 0.0f, 2.0f, 0.7f, 0.0f, 0.001f, 0.3f, 0.0f, 0.4f, 7000.0f, 0.05f, 1.0f, 0.0f, 0.0f, 0.0f, 0.3f, 0.3f, true, 0, 0.7f },
+    { "Trap Arp", 1, Saw, Square, 0.0f, 10.0f, 0.8f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.001f, 0.12f, 0.0f, 0.1f, 1200.0f, 0.3f, 3.0f, 0.0f, 0.0f, 0.0f, 0.2f, 0.2f, true, 1, 0.7f },
+    { "Bell Arp", 1, Sine, Sine, 12.0f, 8.0f, 0.3f, 0.0f, 0.0f, 3.5f, 1.0f, 0.0f, 0.001f, 0.5f, 0.0f, 0.5f, 9000.0f, 0.05f, 0.0f, 0.0f, 0.0f, 0.0f, 0.35f, 0.3f, true, 0, 0.7f },
+    { "Pulse Arp", 1, Pulse, Pulse, 12.0f, 10.0f, 0.6f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.001f, 0.14f, 0.0f, 0.1f, 2500.0f, 0.15f, 2.0f, 0.0f, 0.0f, 0.0f, 0.2f, 0.25f, true, 2, 0.7f },
+    { "Sub Arp", 1, Saw, Sine, -12.0f, 8.0f, 0.5f, 0.5f, 0.0f, 0.0f, 0.0f, 0.0f, 0.001f, 0.2f, 0.0f, 0.15f, 900.0f, 0.15f, 2.0f, 0.0f, 0.0f, 0.0f, 0.2f, 0.15f, true, 0, 0.7f },
+    { "Wide Arp", 1, Saw, Saw, 0.0f, 20.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.001f, 0.25f, 0.0f, 0.3f, 2000.0f, 0.15f, 2.0f, 0.0f, 0.0f, 0.0f, 0.3f, 0.35f, true, 3, 0.7f },
+    { "Pitch Arp", 1, Saw, Square, 0.0f, 6.0f, 0.8f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.001f, 0.1f, 0.0f, 0.1f, 1800.0f, 0.15f, 2.0f, 4.0f, 0.0f, 0.0f, 0.2f, 0.2f, true, 0, 0.7f },
+    { "Rhodes Classic", 2, Sine, Sine, 0.0f, 3.0f, 0.35f, 0.0f, 0.0f, 1.0f, 1.1f, 1.1f, 0.002f, 2.5f, 0.05f, 0.4f, 6000.0f, 0.05f, 0.3f, 0.0f, 0.0f, 0.0f, 0.2f, 0.0f, false, 0, 0.8f },
+    { "Rhodes Dark", 2, Sine, Sine, 0.0f, 3.0f, 0.3f, 0.12f, 0.0f, 1.0f, 0.8f, 0.6f, 0.002f, 3.0f, 0.05f, 0.5f, 2800.0f, 0.05f, 0.3f, 0.0f, 0.0f, 0.0f, 0.3f, 0.0f, false, 0, 0.8f },
+    { "Wurly", 2, Sine, Tri, 0.0f, 3.0f, 0.3f, 0.0f, 0.015f, 2.0f, 1.3f, 0.0f, 0.002f, 1.3f, 0.1f, 0.3f, 4500.0f, 0.05f, 0.3f, 0.0f, 0.0f, 0.0f, 0.2f, 0.0f, false, 0, 0.8f },
+    { "Soft EP", 2, Sine, Sine, 0.0f, 3.0f, 0.3f, 0.0f, 0.0f, 1.0f, 0.5f, 0.4f, 0.002f, 3.0f, 0.1f, 0.6f, 4000.0f, 0.05f, 0.3f, 0.0f, 0.0f, 0.0f, 0.3f, 0.0f, false, 0, 0.8f },
+    { "Plugg Keys", 2, Sine, Sine, 0.0f, 3.0f, 0.35f, 0.0f, 0.0f, 3.0f, 1.2f, 1.4f, 0.002f, 0.8f, 0.0f, 0.35f, 5500.0f, 0.05f, 0.5f, 0.0f, 0.0f, 0.0f, 0.25f, 0.2f, false, 0, 0.8f },
+    { "Bright Tine", 2, Sine, Sine, 0.0f, 3.0f, 0.4f, 0.0f, 0.0f, 1.0f, 1.5f, 2.0f, 0.002f, 1.5f, 0.05f, 0.4f, 8000.0f, 0.05f, 0.3f, 0.0f, 0.0f, 0.0f, 0.2f, 0.0f, false, 0, 0.8f },
+    { "Dream Keys", 2, Sine, Sine, 0.0f, 3.0f, 0.3f, 0.0f, 0.0f, 1.0f, 0.6f, 0.3f, 0.01f, 3.5f, 0.3f, 1.2f, 3500.0f, 0.05f, 0.3f, 0.0f, 5.0f, 0.06f, 0.45f, 0.3f, false, 0, 0.8f },
+    { "Glo Keys", 2, Sine, Sine, 12.0f, 3.0f, 0.3f, 0.0f, 0.0f, 2.0f, 0.8f, 1.0f, 0.002f, 1.4f, 0.05f, 0.5f, 6500.0f, 0.05f, 0.3f, 0.0f, 0.0f, 0.0f, 0.35f, 0.25f, false, 0, 0.8f },
+    { "Lofi Keys", 2, Sine, Sine, 0.0f, 3.0f, 0.2f, 0.0f, 0.03f, 1.0f, 0.5f, 0.2f, 0.002f, 2.0f, 0.05f, 0.5f, 2200.0f, 0.05f, 0.3f, 0.0f, 0.8f, 0.15f, 0.3f, 0.0f, false, 0, 0.8f },
+    { "Trap Keys", 2, Sine, Sine, 0.0f, 3.0f, 0.3f, 0.25f, 0.0f, 1.0f, 0.9f, 0.8f, 0.002f, 1.0f, 0.0f, 0.3f, 3000.0f, 0.05f, 0.3f, 0.0f, 0.0f, 0.0f, 0.2f, 0.15f, false, 0, 0.8f },
+    { "Trap Brass", 3, Saw, Saw, 0.0f, 10.0f, 0.9f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.04f, 0.3f, 0.7f, 0.25f, 900.0f, 0.15f, 2.5f, 0.0f, 5.0f, 0.05f, 0.2f, 0.0f, false, 0, 0.7f },
+    { "Dark Horns", 3, Saw, Saw, -12.0f, 12.0f, 0.7f, 0.2f, 0.0f, 0.0f, 0.0f, 0.0f, 0.06f, 0.4f, 0.7f, 0.3f, 650.0f, 0.2f, 2.5f, 0.0f, 0.0f, 0.0f, 0.25f, 0.0f, false, 0, 0.7f },
+    { "Royal Brass", 3, Saw, Square, 0.0f, 8.0f, 0.8f, 0.0f, 0.04f, 0.0f, 0.0f, 0.0f, 0.05f, 0.35f, 0.75f, 0.3f, 1100.0f, 0.1f, 2.2f, 0.0f, 0.0f, 0.0f, 0.2f, 0.0f, false, 0, 0.7f },
+    { "Stab Brass", 3, Saw, Saw, 0.0f, 14.0f, 0.8f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.008f, 0.2f, 0.3f, 0.15f, 1000.0f, 0.2f, 3.0f, 0.0f, 0.0f, 0.0f, 0.15f, 0.1f, false, 0, 0.7f },
+    { "Soft Brass", 3, Saw, Tri, 0.0f, 6.0f, 0.8f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.09f, 0.4f, 0.8f, 0.4f, 800.0f, 0.1f, 2.0f, 0.0f, 0.0f, 0.0f, 0.2f, 0.0f, false, 0, 0.7f },
+    { "Brass Swell", 3, Saw, Saw, 0.0f, 8.0f, 0.8f, 0.15f, 0.0f, 0.0f, 0.0f, 0.0f, 0.35f, 0.5f, 0.85f, 0.5f, 600.0f, 0.15f, 3.0f, 0.0f, 0.0f, 0.0f, 0.35f, 0.0f, false, 0, 0.7f },
+    { "Horn Scoop", 3, Saw, Saw, 0.0f, 8.0f, 0.8f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.03f, 0.4f, 0.7f, 0.3f, 900.0f, 0.15f, 2.5f, -2.0f, 0.0f, 0.0f, 0.2f, 0.0f, false, 0, 0.7f },
+    { "Synth Brass 80s", 3, Saw, Saw, 0.0f, 18.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.02f, 0.25f, 0.8f, 0.25f, 1500.0f, 0.2f, 2.5f, 0.0f, 0.0f, 0.0f, 0.3f, 0.0f, false, 0, 0.7f },
+    { "Muted Brass", 3, Square, Saw, 0.0f, 6.0f, 0.6f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.03f, 0.3f, 0.6f, 0.2f, 700.0f, 0.35f, 2.2f, 0.0f, 0.0f, 0.0f, 0.2f, 0.0f, false, 0, 0.7f },
+    { "Low Brass", 3, Saw, Saw, -12.0f, 8.0f, 0.8f, 0.35f, 0.0f, 0.0f, 0.0f, 0.0f, 0.06f, 0.4f, 0.75f, 0.3f, 500.0f, 0.1f, 2.5f, 0.0f, 0.0f, 0.0f, 0.2f, 0.0f, false, 0, 0.7f },
+    { "Dark Strings", 4, Saw, Saw, 0.0f, 14.0f, 0.8f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.6f, 0.5f, 0.8f, 1.0f, 1800.0f, 0.08f, 0.5f, 0.0f, 5.2f, 0.04f, 0.4f, 0.0f, false, 0, 0.65f },
+    { "Glo Strings", 4, Saw, Saw, 12.0f, 18.0f, 0.6f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.5f, 0.5f, 0.85f, 1.2f, 3500.0f, 0.08f, 0.3f, 0.0f, 0.0f, 0.0f, 0.4f, 0.0f, false, 0, 0.65f },
+    { "Cinematic", 4, Saw, Saw, -12.0f, 12.0f, 0.8f, 0.2f, 0.0f, 0.0f, 0.0f, 0.0f, 0.8f, 0.6f, 0.9f, 1.5f, 1500.0f, 0.08f, 0.7f, 0.0f, 0.0f, 0.0f, 0.5f, 0.0f, false, 0, 0.65f },
+    { "Pizz Strings", 4, Saw, Square, 0.0f, 10.0f, 0.8f, 0.0f, 0.03f, 0.0f, 0.0f, 0.0f, 0.003f, 0.25f, 0.0f, 0.2f, 2000.0f, 0.15f, 1.5f, 0.0f, 0.0f, 0.0f, 0.2f, 0.0f, false, 0, 0.65f },
+    { "Soft Pad", 4, Tri, Saw, 0.0f, 12.0f, 0.8f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.6f, 0.9f, 1.8f, 1800.0f, 0.05f, 0.3f, 0.0f, 0.0f, 0.0f, 0.5f, 0.0f, false, 0, 0.65f },
+    { "Staccato Str", 4, Saw, Saw, 0.0f, 10.0f, 0.8f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.02f, 0.15f, 0.2f, 0.15f, 2200.0f, 0.08f, 1.2f, 0.0f, 0.0f, 0.0f, 0.25f, 0.0f, false, 0, 0.65f },
+    { "Violin Lead", 4, Saw, Saw, 0.0f, 5.0f, 0.5f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.12f, 0.3f, 0.9f, 0.3f, 2800.0f, 0.08f, 0.5f, 0.0f, 5.5f, 0.12f, 0.3f, 0.0f, false, 0, 0.65f },
+    { "Choir Pad", 4, Tri, Sine, 12.0f, 6.0f, 0.5f, 0.0f, 0.02f, 0.0f, 0.0f, 0.0f, 0.7f, 0.6f, 0.9f, 1.5f, 2500.0f, 0.05f, 0.2f, 0.0f, 4.8f, 0.05f, 0.55f, 0.0f, false, 0, 0.65f },
+    { "Dark Pad", 4, Saw, Saw, -12.0f, 16.0f, 0.8f, 0.25f, 0.0f, 0.0f, 0.0f, 0.0f, 1.2f, 0.7f, 0.85f, 2.0f, 900.0f, 0.08f, 0.8f, 0.0f, 0.0f, 0.0f, 0.55f, 0.0f, false, 0, 0.65f },
+    { "Tape Strings", 4, Saw, Saw, 0.0f, 20.0f, 0.8f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.3f, 0.5f, 0.8f, 0.8f, 1400.0f, 0.08f, 0.5f, 0.0f, 0.9f, 0.15f, 0.35f, 0.2f, false, 0, 0.65f },
+    { "Future Lead", 5, Saw, Square, 0.0f, 12.0f, 0.8f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.005f, 0.2f, 0.9f, 0.25f, 3500.0f, 0.2f, 1.0f, 0.0f, 0.0f, 0.0f, 0.2f, 0.25f, false, 0, 0.65f },
+    { "Glo Lead", 5, Square, Saw, 12.0f, 8.0f, 0.8f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.003f, 0.15f, 0.85f, 0.3f, 4000.0f, 0.15f, 0.8f, 0.0f, 5.5f, 0.1f, 0.2f, 0.3f, false, 0, 0.65f },
+    { "Dark Lead", 5, Saw, Saw, -12.0f, 10.0f, 0.8f, 0.2f, 0.0f, 0.0f, 0.0f, 0.0f, 0.005f, 0.2f, 0.8f, 0.3f, 1800.0f, 0.3f, 1.5f, 0.0f, 0.0f, 0.0f, 0.2f, 0.0f, false, 0, 0.65f },
+    { "Sine Lead", 5, Sine, Tri, 0.0f, 5.0f, 0.3f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.01f, 0.1f, 1.0f, 0.3f, 7000.0f, 0.05f, 0.0f, 0.0f, 5.5f, 0.12f, 0.3f, 0.0f, false, 0, 0.65f },
+    { "Plugg Lead", 5, Square, Tri, 12.0f, 6.0f, 0.8f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.002f, 0.25f, 0.3f, 0.2f, 3000.0f, 0.25f, 2.0f, 0.0f, 0.0f, 0.0f, 0.2f, 0.25f, false, 0, 0.65f },
+    { "Pulse Lead", 5, Pulse, Pulse, 0.0f, 12.0f, 0.8f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.004f, 0.2f, 0.8f, 0.25f, 3500.0f, 0.15f, 1.2f, 0.0f, 0.0f, 0.0f, 0.2f, 0.0f, false, 0, 0.65f },
+    { "Scoop Lead", 5, Saw, Square, 0.0f, 8.0f, 0.8f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.005f, 0.25f, 0.8f, 0.3f, 3000.0f, 0.15f, 1.5f, -2.0f, 0.0f, 0.0f, 0.2f, 0.0f, false, 0, 0.65f },
+    { "Soft Lead", 5, Tri, Saw, 0.0f, 6.0f, 0.4f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.02f, 0.2f, 0.9f, 0.4f, 2500.0f, 0.05f, 0.3f, 0.0f, 0.0f, 0.0f, 0.35f, 0.0f, false, 0, 0.65f },
+    { "Hyper Lead", 5, Saw, Saw, 0.0f, 18.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.002f, 0.15f, 0.9f, 0.2f, 4500.0f, 0.25f, 1.0f, 0.0f, 0.0f, 0.0f, 0.2f, 0.3f, false, 0, 0.65f },
+    { "Bit Lead", 5, Square, Pulse, 0.0f, 3.0f, 0.5f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.002f, 0.1f, 0.8f, 0.1f, 5000.0f, 0.15f, 0.0f, 0.0f, 7.0f, 0.2f, 0.1f, 0.0f, false, 0, 0.65f },
+    { "Fast Pluck", 6, Saw, Square, 0.0f, 7.0f, 0.8f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.001f, 0.09f, 0.0f, 0.08f, 1500.0f, 0.2f, 2.5f, 0.0f, 0.0f, 0.0f, 0.2f, 0.0f, false, 0, 0.72f },
+    { "Rage Stab", 6, Saw, Saw, 0.0f, 15.0f, 0.8f, 0.0f, 0.03f, 0.0f, 0.0f, 0.0f, 0.001f, 0.12f, 0.0f, 0.1f, 1400.0f, 0.3f, 2.5f, 0.0f, 0.0f, 0.0f, 0.2f, 0.0f, false, 0, 0.72f },
+    { "Blip", 6, Square, Sine, 12.0f, 0.0f, 0.5f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.001f, 0.07f, 0.0f, 0.06f, 4000.0f, 0.1f, 1.0f, 0.0f, 0.0f, 0.0f, 0.2f, 0.0f, false, 0, 0.72f },
+    { "Zap", 6, Saw, Saw, 12.0f, 20.0f, 0.8f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.001f, 0.1f, 0.0f, 0.1f, 1200.0f, 0.35f, 2.0f, 18.0f, 0.0f, 0.0f, 0.2f, 0.0f, false, 0, 0.72f },
+    { "Quick Saw", 6, Saw, Saw, 0.0f, 10.0f, 0.8f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.001f, 0.14f, 0.2f, 0.12f, 2200.0f, 0.15f, 2.5f, 0.0f, 0.0f, 0.0f, 0.2f, 0.0f, false, 0, 0.72f },
+    { "Laser", 6, Sine, Saw, 0.0f, 0.0f, 0.3f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.001f, 0.18f, 0.0f, 0.1f, 5000.0f, 0.05f, 0.0f, 30.0f, 0.0f, 0.0f, 0.2f, 0.0f, false, 0, 0.72f },
+    { "Bubble", 6, Sine, Sine, 12.0f, 0.0f, 0.3f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.001f, 0.12f, 0.0f, 0.1f, 6000.0f, 0.05f, 0.0f, -7.0f, 0.0f, 0.0f, 0.2f, 0.0f, false, 0, 0.72f },
+    { "Noise Tick", 6, Sine, Saw, 0.0f, 8.0f, 0.0f, 0.0f, 0.6f, 0.0f, 0.0f, 0.0f, 0.001f, 0.05f, 0.0f, 0.05f, 3500.0f, 0.4f, 1.5f, 0.0f, 0.0f, 0.0f, 0.2f, 0.0f, false, 0, 0.72f },
+    { "Trill", 6, Square, Tri, 12.0f, 8.0f, 0.8f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.001f, 0.2f, 0.5f, 0.1f, 3000.0f, 0.15f, 1.0f, 0.0f, 11.0f, 0.6f, 0.2f, 0.0f, false, 0, 0.72f },
+    { "Sub Pluck", 6, Sine, Sine, 0.0f, 0.0f, 0.0f, 0.7f, 0.0f, 0.0f, 0.0f, 0.0f, 0.001f, 0.15f, 0.0f, 0.1f, 1000.0f, 0.15f, 1.5f, 5.0f, 0.0f, 0.0f, 0.2f, 0.0f, false, 0, 0.72f },
+    { "Chip Run", 6, Pulse, Square, 12.0f, 3.0f, 0.6f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.001f, 0.08f, 0.0f, 0.05f, 4500.0f, 0.15f, 0.0f, 0.0f, 0.0f, 0.0f, 0.2f, 0.0f, false, 0, 0.72f },
+    { "FM Snap", 6, Sine, Sine, 0.0f, 0.0f, 0.2f, 0.0f, 0.0f, 2.0f, 1.3f, 0.0f, 0.001f, 0.1f, 0.0f, 0.08f, 6000.0f, 0.15f, 0.0f, 3.0f, 0.0f, 0.0f, 0.2f, 0.0f, false, 0, 0.72f },
 };
 
 inline const int kNumPresets = (int) std::size (kPresets);

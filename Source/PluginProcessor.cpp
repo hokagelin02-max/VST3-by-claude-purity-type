@@ -8,50 +8,82 @@ TapeRompProcessor::TapeRompProcessor()
       apvts (*this, nullptr, "STATE", createLayout())
 {
     presetP  = apvts.getRawParameterValue ("preset");
-    cutoffP  = apvts.getRawParameterValue ("cutoff");
+    attackP  = apvts.getRawParameterValue ("attack");
     releaseP = apvts.getRawParameterValue ("release");
+    cutoffP  = apvts.getRawParameterValue ("cutoff");
+    resoP    = apvts.getRawParameterValue ("reso");
+    driveP   = apvts.getRawParameterValue ("drive");
+    lofiP    = apvts.getRawParameterValue ("lofi");
+    chorusP  = apvts.getRawParameterValue ("chorus");
     reverbP  = apvts.getRawParameterValue ("reverb");
+    rsizeP   = apvts.getRawParameterValue ("rsize");
+    dlyMixP  = apvts.getRawParameterValue ("dlymix");
+    dlyTimeP = apvts.getRawParameterValue ("dlytime");
+    dlyFbP   = apvts.getRawParameterValue ("dlyfb");
     gainP    = apvts.getRawParameterValue ("gain");
     arpP     = apvts.getRawParameterValue ("arp");
     arpRateP = apvts.getRawParameterValue ("arprate");
-
-    apvts.addParameterListener ("preset", this);
-}
-
-TapeRompProcessor::~TapeRompProcessor()
-{
-    apvts.removeParameterListener ("preset", this);
 }
 
 juce::AudioProcessorValueTreeState::ParameterLayout TapeRompProcessor::createLayout()
 {
     using namespace juce;
     AudioProcessorValueTreeState::ParameterLayout l;
-    l.add (std::make_unique<AudioParameterInt>   (ParameterID { "preset", 1 },  "Preset", 0, kNumPresets - 1, 0));
-    l.add (std::make_unique<AudioParameterFloat> (ParameterID { "cutoff", 1 },  "Tone",    0.f, 1.f, 0.5f));
-    l.add (std::make_unique<AudioParameterFloat> (ParameterID { "release", 1 }, "Release", 0.f, 1.f, 0.5f));
-    l.add (std::make_unique<AudioParameterFloat> (ParameterID { "reverb", 1 },  "Reverb",  0.f, 1.f, 0.20f));
-    l.add (std::make_unique<AudioParameterFloat> (ParameterID { "gain", 1 },    "Volume",  0.f, 1.f, 0.70f));
-    l.add (std::make_unique<AudioParameterBool>  (ParameterID { "arp", 1 },     "Arp", false));
-    l.add (std::make_unique<AudioParameterChoice>(ParameterID { "arprate", 1 }, "Arp Rate",
-                                                  StringArray { "1/4", "1/8", "1/16", "1/32" }, 2));
+    auto f = [&l] (const char* id, const char* name, float def)
+    {
+        l.add (std::make_unique<AudioParameterFloat> (ParameterID { id, 1 }, name, 0.f, 1.f, def));
+    };
+
+    l.add (std::make_unique<AudioParameterInt> (ParameterID { "preset", 1 }, "Preset", 0, kNumPresets - 1, 0));
+
+    // ---- EDIT (сбрасываются при смене пресета)
+    f ("attack",  "Attack",       0.5f);
+    f ("release", "Release",      0.5f);
+    f ("cutoff",  "Tone",         0.5f);
+    f ("reso",    "Resonance",    0.5f);
+    f ("drive",   "Drive",        0.0f);
+    f ("lofi",    "Lo-Fi",        0.0f);
+    f ("chorus",  "Chorus",       0.0f);
+    f ("reverb",  "Reverb",       0.2f);
+    f ("rsize",   "Reverb Size",  0.5f);
+    f ("dlymix",  "Delay Mix",    0.0f);
+    l.add (std::make_unique<AudioParameterInt> (ParameterID { "dlytime", 1 }, "Delay Time", 0, 4, 2));
+    f ("dlyfb",   "Delay Feedback", 0.35f);
+
+    // ---- общие
+    f ("gain", "Volume", 0.7f);
+    l.add (std::make_unique<AudioParameterBool>   (ParameterID { "arp", 1 }, "Arp", false));
+    l.add (std::make_unique<AudioParameterChoice> (ParameterID { "arprate", 1 }, "Arp Rate",
+                                                   StringArray { "1/4", "1/8", "1/16", "1/32" }, 2));
     return l;
 }
 
-// При смене пресета: категория ARPS включает арпеджиатор, остальные выключают
-void TapeRompProcessor::parameterChanged (const juce::String& id, float v)
+void TapeRompProcessor::applyPresetDefaults (int idx)
 {
-    if (id != "preset" || restoring.load()) return;
-    const int i = juce::jlimit (0, kNumPresets - 1, (int) v);
-    if (auto* a = apvts.getParameter ("arp"))
-        a->setValueNotifyingHost (kPresets[i].arp ? 1.f : 0.f);
+    idx = juce::jlimit (0, kNumPresets - 1, idx);
+    const Preset& pr = kPresets[idx];
+
+    auto set = [this] (const char* id, float denormalised)
+    {
+        if (auto* p = apvts.getParameter (id))
+        {
+            p->beginChangeGesture();
+            p->setValueNotifyingHost (p->convertTo0to1 (denormalised));
+            p->endChangeGesture();
+        }
+    };
+
+    set ("attack", 0.5f);   set ("release", 0.5f);  set ("cutoff", 0.5f);  set ("reso", 0.5f);
+    set ("drive", 0.f);     set ("lofi", 0.f);      set ("chorus", 0.f);
+    set ("reverb", pr.reverb);  set ("rsize", 0.5f);
+    set ("dlymix", pr.delay);   set ("dlytime", 2.f);  set ("dlyfb", 0.35f);
+    set ("arp", pr.arp ? 1.f : 0.f);
 }
 
 void TapeRompProcessor::prepareToPlay (double sampleRate, int)
 {
     engine.prepare (sampleRate);
-    reverb.setSampleRate (sampleRate);
-    reverb.reset();
+    fx.prepare (sampleRate);
     arpClear();
     arpNote = -1;
     wasArp = false;
@@ -68,7 +100,7 @@ void TapeRompProcessor::arpNoteOn (int n, float v)
     if (! heldFlag[n])
     {
         heldFlag[n] = true;
-        if (heldCount++ == 0) retrigger = true;   // первая нота -> стартуем сразу
+        if (heldCount++ == 0) retrigger = true;
     }
     heldVel = v;
 }
@@ -116,23 +148,17 @@ int TapeRompProcessor::nextArpNote (int pattern)
     return juce::jlimit (0, 127, seq[pos]);
 }
 
-void TapeRompProcessor::generateArp (const juce::MidiBuffer& in, int numSamples, const Preset& pr)
+void TapeRompProcessor::generateArp (const juce::MidiBuffer& in, int numSamples, const Preset& pr, double bpm)
 {
     arpEvents.clear();
 
     for (const auto meta : in)
     {
         const auto m = meta.getMessage();
-        if (m.isNoteOn())                              arpNoteOn (m.getNoteNumber(), m.getFloatVelocity());
-        else if (m.isNoteOff())                        arpNoteOff (m.getNoteNumber());
+        if (m.isNoteOn())                                arpNoteOn (m.getNoteNumber(), m.getFloatVelocity());
+        else if (m.isNoteOff())                          arpNoteOff (m.getNoteNumber());
         else if (m.isAllNotesOff() || m.isAllSoundOff()) arpClear();
     }
-
-    double bpm = 120.0;
-    if (auto* ph = getPlayHead())
-        if (auto pos = ph->getPosition())
-            if (auto b = pos->getBpm())
-                bpm = juce::jmax (20.0, *b);
 
     static const double beats[4] = { 1.0, 0.5, 0.25, 0.125 };
     const int rate = juce::jlimit (0, 3, (int) arpRateP->load());
@@ -178,16 +204,26 @@ void TapeRompProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
 
     const int idx = juce::jlimit (0, kNumPresets - 1, (int) presetP->load());
     const Preset& pr = kPresets[idx];
+
+    double bpm = 120.0;
+    if (auto* ph = getPlayHead())
+        if (auto pos = ph->getPosition())
+            if (auto b = pos->getBpm())
+                bpm = juce::jmax (20.0, *b);
+
+    // макросы из вкладки EDIT
     const float cutMul = std::exp2 ((cutoffP->load() - 0.5f) * 4.f);
+    const float attMul = std::exp2 ((attackP->load() - 0.5f) * 5.f);
     const float relMul = std::exp2 ((releaseP->load() - 0.5f) * 4.f);
-    engine.setPreset (pr, cutMul, relMul);
+    const float resOff = (resoP->load() - 0.5f) * 0.8f;
+    engine.setMacros (pr, cutMul, attMul, relMul, resOff);
 
     const bool arpOn = arpP->load() > 0.5f;
     const juce::MidiBuffer* src = &midi;
 
     if (arpOn)
     {
-        generateArp (midi, n, pr);
+        generateArp (midi, n, pr, bpm);
         src = &arpEvents;
         wasArp = true;
     }
@@ -215,33 +251,31 @@ void TapeRompProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
     }
     if (pos < n) engine.render (L + pos, R + pos, n - pos);
 
-    // мастер-громкость + мягкий клиппер
-    float g = gainP->load();
-    g = g * g * 1.6f;
+    // эффекты
+    static const double delayBeats[5] = { 0.25, 0.375, 0.5, 0.75, 1.0 };
+    FxParams fp;
+    fp.drive = driveP->load();
+    fp.lofi = lofiP->load();
+    fp.chorus = chorusP->load();
+    fp.delayMix = dlyMixP->load() * 0.7f;
+    fp.delayFb = dlyFbP->load();
+    fp.delaySamples = getSampleRate() * 60.0 / bpm * delayBeats[juce::jlimit (0, 4, (int) dlyTimeP->load())];
+    fp.reverbAmt = reverbP->load();
+    fp.reverbSize = rsizeP->load();
+    fx.process (L, R, n, fp);
+
+    // мастер-громкость + страховочный мягкий клиппер
+    const float vol = gainP->load();
+    const float g = vol * vol * 1.5f;
     for (int i = 0; i < n; ++i)
     {
         L[i] = std::tanh (L[i] * g);
         R[i] = std::tanh (R[i] * g);
     }
 
-    // реверберация (пропускается, если выключена -> экономия CPU)
-    const float rev = reverbP->load();
-    if (rev > 0.005f)
-    {
-        juce::Reverb::Parameters rp;
-        rp.roomSize = 0.6f;
-        rp.damping = 0.5f;
-        rp.wetLevel = rev * 0.4f;
-        rp.dryLevel = 1.0f - 0.2f * rev;
-        rp.width = 1.0f;
-        reverb.setParameters (rp);
-        reverb.processStereo (L, R, n);
-    }
-
     activeVoices.store (engine.numActive());
 }
 
-// ---------------------------------------------------------------- состояние
 void TapeRompProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
     if (auto xml = apvts.copyState().createXml())
@@ -250,11 +284,9 @@ void TapeRompProcessor::getStateInformation (juce::MemoryBlock& destData)
 
 void TapeRompProcessor::setStateInformation (const void* data, int size)
 {
-    restoring = true;
     if (auto xml = getXmlFromBinary (data, size))
         if (xml->hasTagName (apvts.state.getType()))
             apvts.replaceState (juce::ValueTree::fromXml (*xml));
-    restoring = false;
 }
 
 juce::AudioProcessorEditor* TapeRompProcessor::createEditor()
