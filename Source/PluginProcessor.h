@@ -38,7 +38,8 @@ public:
     void applyPresetDefaults (int presetIndex);
 
     juce::AudioProcessorValueTreeState apvts;
-    std::atomic<int> activeVoices { 0 };   // для анимации катушек
+    std::atomic<int> activeVoices { 0 };   // для анимации дисплея
+    std::atomic<bool> panic { false };      // кнопка OFF: выключить все зависшие ноты
 
 private:
     static juce::AudioProcessorValueTreeState::ParameterLayout createLayout();

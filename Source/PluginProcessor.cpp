@@ -217,6 +217,7 @@ void TapeRompProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
     const float relMul = std::exp2 ((releaseP->load() - 0.5f) * 4.f);
     const float resOff = (resoP->load() - 0.5f) * 0.8f;
     engine.setMacros (pr, cutMul, attMul, relMul, resOff);
+    if (panic.exchange (false)) engine.allNotesOff();
 
     const bool arpOn = arpP->load() > 0.5f;
     const juce::MidiBuffer* src = &midi;
